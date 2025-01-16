@@ -12,22 +12,19 @@ app.use(session({
 }));
 
 // Middleware para inicializar propiedades de la sesión
-app.use((req, res, next) => {
-    if (req.session) {
-        if (!req.session.createdAt) {
-            req.session.createdAt = new Date(); // Fecha de creación de la sesión
-        }
-        req.session.lastAccess = new Date(); // Último acceso a la sesión
-    }
-    next();
-});
+
 
 // Ruta para iniciar sesión
-app.get('/login', (req, res) => {
+app.get('/login/:name', (req, res) => {
+    const userName = req.params.name;
     if (!req.session.createdAt) {
+        req.session.userName = userName;
         req.session.createdAt = new Date();
         req.session.lastAccess = new Date();
-        res.send('La sesión ha sido iniciada.');
+        res.send(`
+            <h1>Bienvenido, tu sesión ha sido iniciada</h1>
+            <h2><strong>Nombre de usuario: </strong> ${userName}</h2>
+        `);
     } else {
         res.send('Ya existe una sesión activa.');
     }
@@ -49,23 +46,24 @@ app.get('/status', (req, res) => {
         const now = new Date();
         const started = new Date(req.session.createdAt);
         const lastUpdate = new Date(req.session.lastAccess);
+        const userName= req.session.userName;
 
         const sessionAgeMs = now - started;
-        const hours = Math.floor(sessionAgeMs / (1000 * 60 * 60));
-        const minutes = Math.floor((sessionAgeMs % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((sessionAgeMs % (1000 * 60)) / 1000);
+        const hours = Math.floor(sessionAgeMs / (1000 * 60 * 60))
+        const minutes = Math.floor((sessionAgeMs % (1000 * 60 * 60)) / (1000 * 60))
+        const seconds = Math.floor((sessionAgeMs % (1000 * 60)) / 1000)
 
-        const inicioCDMX = moment(started).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
-        const ultimoAccesoCDMX = moment(lastUpdate).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
+        const createdAt_CDMX  = moment(started).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
+        const lastAcces_CDMX  = moment(lastUpdate).tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss');
 
         res.json({
-            inicioCDMX,
-            ultimoAccesoCDMX,
-            antiguedad: {
-                horas: hours,
-                minutos: minutes,
-                segundos: seconds
-            }
+            message: 'Estado de la sesión',
+            name: userName,
+            sessionId: req.sessionID,
+            inicio: createdAt_CDMX,
+            ultimoAcceso: lastAcces_CDMX,
+            antiguedad: `${hours} horas, ${minutes} minutos y ${seconds} segundos`
+            
         });
     } else {
         res.status(404).json({ error: 'No hay una sesión activa.' });
@@ -75,15 +73,16 @@ app.get('/status', (req, res) => {
 // Ruta para mostrar los detalles de la sesión
 app.get('/session', (req, res) => {
     if (req.session.createdAt) {
+        const userName = req.session.userName;
         const sessionId = req.session.id;
-        const createdAt = req.session.createdAt;
-        const lastAccess = req.session.lastAccess;
-        const sessionDuration = Math.floor((new Date() - new Date(createdAt)) / 1000); // Duración en segundos
+        const createdAt = new Date(req.session.createdAt);
+        const lastAccess = new Date(req.session.lastAccess);
+        const sessionDuration = ((new Date()- createdAt) / 1000).toFixed(2); // Duración en segundos
 
         res.send(`
             <h1>Detalles de la sesión</h1>
             <p><strong>ID de sesión:</strong> ${sessionId}</p>
-            <p><strong>Usuario:</strong> Jonathan</p>
+            <p><strong>Usuario:</strong> ${userName}</p>
             <p><strong>Fecha de creación de la sesión:</strong> ${createdAt}</p>
             <p><strong>Último acceso:</strong> ${lastAccess}</p>
             <p><strong>Duración de la sesión (en segundos):</strong> ${sessionDuration}</p>
@@ -95,7 +94,7 @@ app.get('/session', (req, res) => {
 
 // Ruta para cerrar la sesión
 app.get('/logout', (req, res) => {
-    if (req.session.createdAt) {
+    if (req.session) {
         req.session.destroy((err) => {
             if (err) {
                 return res.status(500).send('Error al cerrar la sesión.');
